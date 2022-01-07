@@ -69,10 +69,80 @@ housing_builds <- read_csv("Data\\Housing-stock-and-construction.csv",
   dplyr::filter(!Country %in% c("Korea", "Russian Federation", "South Africa"))
 
 housing_builds <- housing_builds %>% 
+  dplyr::filter(!is.na(Country)) %>% 
   mutate(rate1 = (Dwellings2 / Dwellings1) ^ (1 / (Year2 - Year1)) - 1,
-         rate2 = (Dwellings3 / Dwellings2) ^ (1 / (Year3 - Year2)) - 1)
+         rate2 = (Dwellings3 / Dwellings2) ^ (1 / (Year3 - Year2)) - 1,
+         ratepc1 = (PCDwellings2 / PCDwellings1) ^ (1 / (Year2 - Year1)) - 1,
+         ratepc2 = (PCDwellings3 / PCDwellings2) ^ (1 / (Year3 - Year2)) - 1) %>% 
+  mutate(rate2 = ifelse(is.na(rate2), rate1, rate2),
+         ratepc2 = ifelse(is.na(ratepc2), ratepc1, ratepc2))
 
-  
+builds_df <- data.frame(country = unique(housing_builds$Country),
+                        year = NA) %>% 
+  complete(country, year = min(housing_builds$Year1, na.rm = T):
+             max(housing_builds$Year3, na.rm = T)) %>% 
+  mutate(Dwellings = 0.00, PCDwellings = 0.00) %>% 
+  dplyr::filter(!is.na(year))
+
+min_year <- min(housing_builds$Year1, na.rm = T)
+max_year <- max(housing_builds$Year3, na.rm = T)
+
+# My least favorite for loop ever
+for (country in builds_df$country){
+  filter_df <- housing_builds %>% dplyr::filter(Country == country)
+  for (year in min_year:max_year){
+    if (year < filter_df$Year1) {
+      builds_df[builds_df$country == country & builds_df$year == year,
+                c("Dwellings", "PCDwellings")] <- 
+        list(filter_df$Dwellings1 * 
+            ((1 -(filter_df$rate1)) ^ (filter_df$Year1 - year)),
+          filter_df$PCDwellings1 * 
+            ((1 -(filter_df$rate1)) ^ (filter_df$Year1 - year))
+        )
+    }
+    if (year == filter_df$Year1) {
+      builds_df[builds_df$country == country & builds_df$year == year,
+                c("Dwellings", "PCDwellings")] <- 
+        list(filter_df$Dwellings1, filter_df$PCDwellings1)
+    }
+    if (year > filter_df$Year1 & year < filter_df$Year2) {
+      builds_df[builds_df$country == country & builds_df$year == year,
+                c("Dwellings", "PCDwellings")] <- 
+        list(filter_df$Dwellings2 * 
+               ((1 -(filter_df$rate1)) ^ (filter_df$Year2 - year)),
+             filter_df$PCDwellings2 * 
+               ((1 -(filter_df$rate1)) ^ (filter_df$Year2 - year)))
+        
+    }
+    if (year == filter_df$Year2) {
+      builds_df[builds_df$country == country & builds_df$year == year,
+                c("Dwellings", "PCDwellings")] <- 
+        list(filter_df$Dwellings2, filter_df$PCDwellings2)
+    }
+    if (year > filter_df$Year2) {
+      builds_df[builds_df$country == country & builds_df$year == year,
+                c("Dwellings", "PCDwellings")] <- 
+        list(filter_df$Dwellings2 * 
+               ((1 + (filter_df$rate2)) ^ (year - filter_df$Year2)),
+             filter_df$PCDwellings2 * 
+               ((1 + (filter_df$rate2)) ^ (year - filter_df$Year2))
+        )
+      if (!is.na(filter_df$Year3)){
+        if (year == filter_df$Year3) {
+          builds_df[builds_df$country == country & builds_df$year == year,
+                    c("Dwellings")] <- 
+            filter_df$Dwellings3
+        }
+      }
+    }
+  }
+}
+ 
+# Need to replace the countries until country abbreviation
+test <- builds_df %>% 
+  mutate(country = as.character(country)) %>% 
+  str_replace_all(c("Australia" = "AUS"))
+
 ### Data join annual data
 data_A <- left_join(prices_A_real, interest_A_all) %>% 
   left_join(gdp_A) %>% 
