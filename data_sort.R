@@ -58,6 +58,20 @@ gdp_Q <- gdp %>%
   mutate(year = as.numeric(str_sub(TIME, 0, 4)),
          quarter = as.numeric(str_sub(TIME, 7, 7))) %>% 
   dplyr::select(-TIME, -FREQUENCY, -SUBJECT, -MEASURE)
+
+### Housing stock data (may offload to separate script)
+### This data is not a strict time-series, so I'm filling in blank
+### values by continuing trends between years
+
+# Import data, leave out 3 countries with only one observation
+housing_builds <- read_csv("Data\\Housing-stock-and-construction.csv",
+                           skip = 1) %>% 
+  dplyr::filter(!Country %in% c("Korea", "Russian Federation", "South Africa"))
+
+housing_builds <- housing_builds %>% 
+  mutate(rate1 = (Dwellings2 / Dwellings1) ^ (1 / (Year2 - Year1)) - 1,
+         rate2 = (Dwellings3 / Dwellings2) ^ (1 / (Year3 - Year2)) - 1)
+
   
 ### Data join annual data
 data_A <- left_join(prices_A_real, interest_A_all) %>% 
@@ -71,8 +85,8 @@ data_Q <- left_join(prices_Q_real, interest_Q_all) %>%
 ### Starting model
 ### prices ~ stock + inflation + gdp + population
 
-lm1 <- lm(houseprice ~ interest + gdp + lag_houseprice + as.factor(LOCATION),
-           data = data_A)
+lm1 <- lm(houseprice ~ interest + lag_houseprice + as.factor(LOCATION),
+           data = data_A[!is.na(data_A$gdp),])
 lm2 <- lm(houseprice ~ interest + gdp + lag_houseprice + as.factor(LOCATION),
           data = data_A)
 anova(lm1, lm2)
@@ -94,3 +108,4 @@ write_csv(data_Q, "Data\\Quarterly_Data_timeseries.csv")
 ### House Prices - OECD (2021), Housing prices (indicator). doi: 10.1787/63008438-en (Accessed on 03 January 2022)
 ### Long-term Interest - OECD (2022), Long-term interest rates (indicator). doi: 10.1787/662d712c-en (Accessed on 05 January 2022)
 ### GDP - OECD (2022), Quarterly GDP (indicator). doi: 10.1787/b86d1fc8-en (Accessed on 05 January 2022)
+### Housing Constructs https://www.oecd.org/housing/data/affordable-housing-database/housing-market.htm
