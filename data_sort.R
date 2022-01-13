@@ -1,5 +1,6 @@
 library(tidyverse)
 library(tsibble)
+library(lme4)
 
 ### Data Loading Section. 
 ###
@@ -155,11 +156,41 @@ data_Q <- left_join(prices_Q_real, interest_Q_all) %>%
 ### Starting model
 ### prices ~ stock + inflation + gdp + population
 
-lm1 <- lm(houseprice ~ interest + lag_houseprice + as.factor(LOCATION),
+lm1 <- lm(log(houseprice) ~ interest + as.factor(year),
            data = data_A[!is.na(data_A$gdp),])
-lm2 <- lm(houseprice ~ interest + gdp + lag_houseprice + as.factor(LOCATION),
+lm2 <- lm(log(houseprice) ~ interest + log(gdp) + as.factor(year),
           data = data_A)
 anova(lm1, lm2)
+
+### MRLE models (testing for formatting)
+
+data_A_2010 <- data_A %>% dplyr::filter(year >= 2010)
+
+# Fixed effect model on LOCATION and year
+mle1 <- lmer(log(houseprice) ~ interest + log(gdp) + (1 | LOCATION) +
+               (1 | year),
+             data = data_A_2010)
+summary(mle1)
+coef(mle1)$year
+coef(mle1)$LOCATION
+
+# Random slope, fixed intercept
+
+mix.hp <- lmer(log(houseprice) ~ log(gdp) + interest +
+                 (0 + log(gdp) | LOCATION) + (1 | year),
+               data = data_A_2010)
+summary(mix.hp)
+coef(mix.hp)$year
+coef(mix.hp)$LOCATION
+
+# Random effects
+
+re.hp <- lmer(log(houseprice) ~ log(gdp) + interest +
+                (log(gdp) | LOCATION) + (1 | year) + (1 | LOCATION),
+              data = data_A_2010)
+summary(re.hp)
+coef(re.hp)$year
+coef(re.hp)$LOCATION
 
 ### Time-series data structure tsibble package
 ###
