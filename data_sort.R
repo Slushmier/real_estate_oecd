@@ -215,7 +215,7 @@ summary(lm3)
 lm4 <- lm(log(houseprice) ~ interest  + log(gdp) + PCDwellings + lag_houseprice,
              data = data_A[!is.na(data_A$gdp) & !is.na(data_A$PCDwellings),])
 summary(lm4)
-anova(lm3, lm4)
+anova(lm3, lm4) 
 
 ### MRLE models (testing for formatting)
 
