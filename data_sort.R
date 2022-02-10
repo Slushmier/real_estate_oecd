@@ -140,27 +140,82 @@ for (country in builds_df$country){
 }
  
 # Need to replace the countries until country abbreviation
-test <- builds_df %>% 
+builds_df <- builds_df %>% 
   mutate(country = as.character(country)) %>% 
-  str_replace_all(c("Australia" = "AUS"))
+  mutate(LOCATION = case_when(
+    country == "Australia" ~ "AUS",
+    country == "Austria" ~ "AUT",
+    country == "Belgium" ~ "BEL",
+    country == "Brazil" ~ "BRA",
+    country == "Bulgaria" ~ "BGR",
+    country == "Canada" ~ "CAN",
+    country == "Chile" ~ "CHL",
+    country == "Colombia" ~ "COL",
+    country == "Costa Rica" ~ "CRI",
+    country == "Croatia" ~ "HRV",
+    country == "Cyprus" ~ "CYP",
+    country == "Czech Republic" ~ "CZE",
+    country == "Denmark" ~ "DNK",
+    country == "Estonia" ~ "EST",
+    country == "Finland" ~ "FIN",
+    country == "France" ~ "FRA",
+    country == "Germany" ~ "DEU",
+    country == "Greece" ~ "GRC",
+    country == "Hungary" ~ "HUN",
+    country == "Iceland" ~ "ISL",
+    country == "Ireland" ~ "IRL",
+    country == "Japan" ~ "JPN",
+    country == "Latvia" ~ "LVA",
+    country == "Lithuania" ~ "LTU",
+    country == "Luxembourg" ~ "LUX",
+    country == "Netherlands" ~ "NLD",
+    country == "New Zealand" ~ "NZL",
+    country == "Norway" ~ "NOR",
+    country == "Poland" ~ "POL",
+    country == "Portugal" ~ "PRT",
+    country == "Romania" ~ "ROU",
+    country == "Slovak Republic" ~ "SVK",
+    country == "Slovenia" ~ "SVN",
+    country == "Spain" ~ "ESP",
+    country == "Sweden" ~ "SWE",
+    country == "Switzerland" ~ "CHE",
+    country == "Turkey" ~ "TUR",
+    country == "UK (England)" ~ "GBR",
+    country == "United States" ~ "USA",
+    TRUE ~ country
+  )) %>% select(-country)
 
 ### Data join annual data
 data_A <- left_join(prices_A_real, interest_A_all) %>% 
   left_join(gdp_A) %>% 
+  left_join(builds_df) %>% 
   group_by(LOCATION) %>% 
   mutate(lag_houseprice = lag(houseprice, order_by = LOCATION)) %>% 
   ungroup()
 data_Q <- left_join(prices_Q_real, interest_Q_all) %>% 
   left_join(gdp_Q)
 
-### Starting model
-### prices ~ stock + inflation + gdp + population
+### Desired starting model
+### prices ~ stock + interest + gdp + population
+###
+### This is price ~ interest + gdp...validates importance of having gdp
 
 lm1 <- lm(log(houseprice) ~ interest + as.factor(year),
            data = data_A[!is.na(data_A$gdp),])
 lm2 <- lm(log(houseprice) ~ interest + log(gdp) + as.factor(year),
           data = data_A)
 anova(lm1, lm2)
+
+### prices ~ stock + interest + gdp
+### The sign on PC dwellings doesn't make sense
+
+lm3 <- lm(log(houseprice) ~ interest  + log(gdp) + lag_houseprice,
+       data = data_A[!is.na(data_A$gdp) & !is.na(data_A$PCDwellings),])
+summary(lm3)
+lm4 <- lm(log(houseprice) ~ interest  + log(gdp) + PCDwellings + lag_houseprice,
+             data = data_A[!is.na(data_A$gdp) & !is.na(data_A$PCDwellings),])
+summary(lm4)
+anova(lm3, lm4)
 
 ### MRLE models (testing for formatting)
 
